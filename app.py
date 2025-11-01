@@ -9,6 +9,9 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
+# ✅ Import Telegram messaging function
+from send_mst import msg_fun
+
 # --------- CONSTANTS ---------
 ANILIST_URL = "https://graphql.anilist.co"
 MIRURO_WATCH_BASE = "https://www.miruro.to/watch"
@@ -40,6 +43,7 @@ def fetch_anime_details(anime_id: int):
         data = response.json()
         return data.get("data", {}).get("Media", None)
     except Exception as e:
+        msg_fun(f"❌ AniList fetch failed: {e}")
         print(f"[ERROR] Failed to fetch AniList data: {e}")
         return None
 
@@ -86,6 +90,7 @@ def extract_miruro_links(anime_id: int):
     """Extract streaming URLs for all episodes of a Miruro anime"""
     anime = fetch_anime_details(anime_id)
     if not anime:
+        msg_fun("❌ Could not fetch anime details.")
         print("[ERROR] Could not fetch anime details from AniList.")
         return
 
@@ -93,36 +98,47 @@ def extract_miruro_links(anime_id: int):
     total_eps = anime.get("episodes", 12)
     total_eps = min(total_eps, 25)  # avoid long runs
 
-    print(f"\n🎬 {title}")
-    print(f"Total Episodes: {total_eps}")
-    print("-" * 60)
+    start_msg = f"🎬 Starting extraction for {title} ({total_eps} eps)"
+    print(start_msg)
+    msg_fun(start_msg)
 
     driver = initialize_driver()
     results = []
 
     for ep in range(1, total_eps + 1):
         watch_url = f"{MIRURO_WATCH_BASE}/{anime_id}/episode-{ep}"
+        short_msg = f"▶️ Ep {ep}/{total_eps}"
         print(f"\n[INFO] Loading Episode {ep}: {watch_url}")
+        msg_fun(short_msg)
+
         try:
             driver.get(watch_url)
             time.sleep(5)
             video_url = extract_video_url(driver)
             if video_url:
-                print(f"[SUCCESS] Ep {ep} => {video_url}")
                 results.append({"episode": ep, "url": video_url})
+                success_msg = f"✅ Ep {ep}: {video_url[:60]}..."
+                print(success_msg)
+                msg_fun(success_msg)
             else:
-                print(f"[WARN] No video URL found for Ep {ep}")
+                warn_msg = f"⚠️ Ep {ep}: No URL found"
+                print(warn_msg)
+                msg_fun(warn_msg)
         except Exception as e:
-            print(f"[ERROR] Episode {ep}: {e}")
+            err_msg = f"❌ Ep {ep} failed: {str(e)[:100]}"
+            print(err_msg)
+            msg_fun(err_msg)
             traceback.print_exc()
+
         time.sleep(1.5)
 
     driver.quit()
 
     # Print all results
     print("\n=== Extraction Completed ===")
-    for r in results:
-        print(f"Ep {r['episode']:02d}: {r['url']}")
+    done_msg = f"✅ Extraction completed for {title}. Total: {len(results)} URLs"
+    print(done_msg)
+    msg_fun(done_msg)
 
     # Save results
     filename = f"miruro_{anime_id}_videos.txt"
@@ -130,6 +146,7 @@ def extract_miruro_links(anime_id: int):
         for r in results:
             f.write(f"Episode {r['episode']}: {r['url']}\n")
     print(f"\nSaved results to {filename}")
+    msg_fun(f"📁 Saved results: {filename}")
 
 # --------- ENTRY POINT ---------
 if __name__ == "__main__":
@@ -144,6 +161,7 @@ if __name__ == "__main__":
         if match:
             anime_id = int(match.group(1))
         else:
+            msg_fun("❌ Invalid Miruro URL format.")
             print("❌ Invalid Miruro URL format.")
             exit(1)
     else:
