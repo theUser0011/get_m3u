@@ -29,4 +29,4 @@ jobs:
       - name: Run extractor
         env:
           ANIME_ID: 176298
-        run: python extract_miruro_videos.py
+        run: python app.py
