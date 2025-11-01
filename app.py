@@ -113,7 +113,7 @@ def extract_miruro_links(anime_id: int):
 
         try:
             driver.get(watch_url)
-            time.sleep(5)
+            time.sleep(1)
             video_url = extract_video_url(driver)
             if video_url:
                 results.append({"episode": ep, "url": video_url})
