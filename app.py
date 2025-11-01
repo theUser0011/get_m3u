@@ -107,7 +107,7 @@ def extract_miruro_links(anime_id: int):
 
     for ep in range(1, total_eps + 1):
         watch_url = f"{MIRURO_WATCH_BASE}/{anime_id}/episode-{ep}"
-        short_msg = f"▶️ Ep {ep}/{total_eps}"
+        short_msg = f"▶️ Ep {ep}/{total_eps}/{watch_url}"
         print(f"\n[INFO] Loading Episode {ep}: {watch_url}")
         msg_fun(short_msg)
 
