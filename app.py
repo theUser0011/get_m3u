@@ -117,7 +117,7 @@ def extract_miruro_links(anime_id: int):
             video_url = extract_video_url(driver)
             if video_url:
                 results.append({"episode": ep, "url": video_url})
-                success_msg = f"✅ Ep {ep}: {video_url[:60]}..."
+                success_msg = f"✅ Ep {ep}: {video_url}..."
                 print(success_msg)
                 msg_fun(success_msg)
             else:
