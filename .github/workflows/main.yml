@@ -1,0 +1,32 @@
+name: Extract Miruro Links
+
+on:
+  workflow_dispatch:
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # - name: Install Chrome & chromedriver
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y chromium-browser chromium-chromedriver
+      #     sudo ln -s /usr/bin/chromium-browser /usr/bin/google-chrome
+      #     echo "✅ Chrome installed"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run extractor
+        env:
+          ANIME_ID: 176298
+        run: python extract_miruro_videos.py
