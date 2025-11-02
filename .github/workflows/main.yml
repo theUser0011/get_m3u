@@ -1,6 +1,10 @@
 name: Extract Miruro Links
 
 on:
+  push:
+    paths:
+      - app.py
+      - anime_id.json
   workflow_dispatch:
 
 jobs:
@@ -10,13 +14,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
-      # - name: Install Chrome & chromedriver
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y chromium-browser chromium-chromedriver
-      #     sudo ln -s /usr/bin/chromium-browser /usr/bin/google-chrome
-      #     echo "✅ Chrome installed"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -30,5 +27,4 @@ jobs:
         env:
           ANIME_ID: 166794
           KEYS: ${{ secrets.KEYS }}
-          
         run: python app.py
