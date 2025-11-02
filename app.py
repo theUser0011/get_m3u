@@ -229,13 +229,13 @@ if __name__ == "__main__":
     if not user_input:
         msg_fun("No id provided...")
 
-    # Parse ID from URL
-    if "miruro.to" in user_input:
-        match = re.search(r"/watch/(\d+)", user_input)
-        if not match:
-            msg_fun("❌ Invalid Miruro URL")
-            exit(1)
-        anime_id = int(match.group(1))
+    # # Parse ID from URL
+    # if "miruro.to" in user_input:
+    #     match = re.search(r"/watch/(\d+)", user_input)
+    #     if not match:
+    #         msg_fun("❌ Invalid Miruro URL")
+    #         exit(1)
+    #     anime_id = int(match.group(1))
     else:
         try:
             anime_id = int(user_input)
