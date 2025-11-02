@@ -219,13 +219,15 @@ def extract_miruro_links(anime_id: int):
     msg_fun(f"✅ Done! {len(results)} episodes ready.")
     print(f"\n✅ All done! {len(results)} episodes extracted.")
 
-
+import json
 # --------- ENTRY POINT ---------
 if __name__ == "__main__":
-    user_input = os.getenv("ANIME_ID", "").strip()
+    with open("anime_id.json",encoding='utf-8')as f:
+        id_obj = json.loads(f)
+    user_input = id_obj.get("ANIME_ID", None).strip()
 
     if not user_input:
-        user_input = input("Enter AniList ID or Miruro URL: ").strip()
+        msg_fun("No id provided...")
 
     # Parse ID from URL
     if "miruro.to" in user_input:
