@@ -4,6 +4,7 @@ import time
 import traceback
 import requests
 import html
+import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
@@ -16,10 +17,11 @@ from send_mst import msg_fun, file_fun
 # --------- CONSTANTS ---------
 ANILIST_URL = "https://graphql.anilist.co"
 MIRURO_WATCH_BASE = "https://www.miruro.to/watch"
+TEMPLATE_FILE = "template.html"  # External HTML template
 
 # --------- GRAPHQL FETCH ---------
 def fetch_anime_details(anime_id: int):
-    """Fetch anime details (title, desc, cover, etc.) from AniList GraphQL API"""
+    """Fetch anime details from AniList GraphQL API"""
     query = """
     query ($id: Int) {
       Media(id: $id, type: ANIME) {
@@ -39,14 +41,15 @@ def fetch_anime_details(anime_id: int):
     """
     variables = {"id": anime_id}
     try:
-        response = requests.post(ANILIST_URL, json={"query": query, "variables": variables})
+        response = requests.post(ANILIST_URL, json={"query": query, "variables": variables}, timeout=10)
         response.raise_for_status()
         data = response.json()
-        return data.get("data", {}).get("Media", None)
+        return data.get("data", {}).get("Media")
     except Exception as e:
         msg_fun(f"❌ AniList fetch failed: {e}")
-        print(f"[ERROR] Failed to fetch AniList data: {e}")
+        print(f"[ERROR] AniList API error: {e}")
         return None
+
 
 # --------- SELENIUM DRIVER SETUP ---------
 def initialize_driver():
@@ -58,178 +61,163 @@ def initialize_driver():
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--mute-audio")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-infobars")
+    options.add_argument("--disable-notifications")
 
     service = Service("chromedriver")
     driver = webdriver.Chrome(service=service, options=options)
+    driver.set_page_load_timeout(30)
     return driver
+
 
 # --------- VIDEO URL EXTRACTION ---------
 def extract_video_url(driver, max_presses=25):
-    """Try pressing 'K' key to start video and extract m3u8/mp4 URL"""
+    """Press 'K' to play and extract m3u8 or mp4 URL"""
     actions = ActionChains(driver)
     body = driver.find_element(By.TAG_NAME, "body")
     pattern_m3u8 = re.compile(r'https?://[^\s"\'<>]+\.m3u8')
     pattern_mp4 = re.compile(r'https?://[^\s"\'<>]+\.mp4')
 
-    for i in range(max_presses):
+    for _ in range(max_presses):
         try:
             actions.move_to_element(body).click().send_keys("k").perform()
-        except Exception:
+        except:
             pass
         time.sleep(1.2)
-        html_source = driver.page_source
+        source = driver.page_source
 
-        m3u8_match = pattern_m3u8.search(html_source)
-        mp4_match = pattern_mp4.search(html_source)
-
-        if m3u8_match or mp4_match:
-            return m3u8_match.group(0) if m3u8_match else mp4_match.group(0)
+        if match := pattern_m3u8.search(source):
+            return match.group(0)
+        if match := pattern_mp4.search(source):
+            return match.group(0)
     return None
+
 
 # --------- FILENAME SANITIZATION ---------
 def sanitize_filename(name: str) -> str:
-    """Return safe filename version of a string."""
-    return re.sub(r'[^a-zA-Z0-9_-]+', '_', name).strip('_').lower()
+    """Make string safe for filenames"""
+    return re.sub(r'[^a-zA-Z0-9_-]', '_', name).strip('_').lower()
 
-# --------- HTML GENERATION ---------
+
+# --------- HTML GENERATION (EXTERNAL TEMPLATE) ---------
 def generate_html_file(anime, results):
-    """Generate an HTML file for anime details and episodes using template."""
-    title = anime["title"].get("romaji") or anime["title"].get("english") or f"Anime_{anime['id']}"
+    """Generate stunning HTML using template.html"""
+    title_en = anime["title"].get("english")
+    title_romaji = anime["title"].get("romaji")
+    title = title_en or title_romaji or f"Anime_{anime['id']}"
     cover = anime["coverImage"]["extraLarge"]
-    score = anime.get("averageScore", "N/A")
-    total_eps = anime.get("episodes", len(results))
-    sanitized_title = sanitize_filename(title)
-    html_file = f"{sanitized_title}.html"
+    score = anime.get("averageScore") or "N/A"
+    total_eps = len(results)
+    sanitized = sanitize_filename(title)
+    html_file = f"{sanitized}.html"
 
-    # Read template
-    if not os.path.exists("html_content.txt"):
-        print("⚠️ Missing html_content.txt file. Creating fallback template.")
-        html_template = """
-        <html>
-        <head>
-          <title>{{TITLE}}</title>
-          <style>
-            body { font-family: Arial, sans-serif; background-color: #f9f9f9; margin: 20px; }
-            .container { max-width: 900px; margin: auto; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
-            .cover { text-align: center; margin-bottom: 20px; }
-            img { border-radius: 10px; width: 250px; }
-            .title { font-size: 24px; font-weight: bold; margin-top: 10px; }
-            .score { color: #666; margin-bottom: 20px; }
-            ul { list-style: none; padding: 0; }
-            li { margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; background-color: #fafafa; }
-            video { width: 100%; border-radius: 8px; margin-top: 5px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="cover">
-              <img src="{{COVER}}" alt="Cover">
-              <div class="title">{{TITLE}}</div>
-              <div class="score">⭐ Score: {{SCORE}} | 🎞️ Episodes: {{EPISODES}}</div>
-            </div>
-            <ul>
-              {{EPISODE_LIST}}
-            </ul>
-          </div>
-        </body>
-        </html>
-        """
-    else:
-        with open("html_content.txt", "r", encoding="utf-8") as f:
-            html_template = f.read()
+    # Check template
+    if not os.path.exists(TEMPLATE_FILE):
+        msg_fun("❌ template.html not found! Creating fallback...")
+        print("❌ template.html missing. Run: touch template.html and paste the template.")
+        return None
 
-    # Build episode list
-    episode_html = ""
+    with open(TEMPLATE_FILE, "r", encoding="utf-8") as f:
+        template = f.read()
+
+    # Build episode cards
+    episode_cards = ""
     for r in results:
-        ep = r["episode"]
+        ep_num = r["episode"]
         url = html.escape(r["url"])
-        episode_html += f"<li><strong>Episode {ep}</strong><br><a href='{url}' target='_blank'>{url}</a><br><video controls src='{url}'></video></li>\n"
+        card = f"""
+        <div class="episode-card">
+          <div class="ep-header">Episode {ep_num}</div>
+          <div class="video-container">
+            <video controls preload="metadata" data-src="{url}" poster="{cover}"></video>
+          </div>
+          <div class="fallback-link">
+            🔗 <a href="{url}" target="_blank">Open Stream</a>
+          </div>
+        </div>
+        """
+        episode_cards += card
 
     # Replace placeholders
+    today = datetime.datetime.now().strftime("%B %d, %Y")
     html_content = (
-        html_template
+        template
         .replace("{{TITLE}}", html.escape(title))
         .replace("{{COVER}}", cover)
         .replace("{{SCORE}}", str(score))
         .replace("{{EPISODES}}", str(total_eps))
-        .replace("{{EPISODE_LIST}}", episode_html)
+        .replace("{{EPISODE_LIST}}", episode_cards)
+        .replace("{{DATE}}", today)
     )
 
-    # Save file
+    # Save HTML
     with open(html_file, "w", encoding="utf-8") as f:
         f.write(html_content)
 
-    print(f"📄 HTML saved: {html_file}")
-    msg_fun(f"📄 HTML file created: {html_file}")
-    file_fun(html_file, f"📁 {title} - Video List")
+    print(f"✨ HTML Generated: {html_file}")
+    msg_fun(f"✨ HTML Ready: {html_file}")
+    file_fun(html_file, f"🎬 {title} - Watch All Episodes")
     return html_file
+
 
 # --------- MAIN EXTRACTION ---------
 def extract_miruro_links(anime_id: int):
-    """Extract streaming URLs for all episodes of a Miruro anime"""
+    """Extract all episode streaming URLs"""
     anime = fetch_anime_details(anime_id)
     if not anime:
-        msg_fun("❌ Could not fetch anime details.")
-        print("[ERROR] Could not fetch anime details from AniList.")
+        msg_fun("❌ Anime not found on AniList.")
         return
 
-    title = anime["title"].get("romaji") or anime["title"].get("english") or f"Anime {anime_id}"
-    total_eps = anime.get("episodes", 12)
-    total_eps = min(total_eps, 25)  # avoid long runs
-
-    start_msg = f"🎬 Starting extraction for {title} ({total_eps} eps)"
-    print(start_msg)
-    msg_fun(start_msg)
+    title = (anime["title"].get("english") or anime["title"].get("romaji") or f"ID {anime_id}")
+    total_eps = min(anime.get("episodes") or 12, 50)
+    print(f"🎬 Extracting: {title} ({total_eps} episodes)")
+    msg_fun(f"🎬 Starting: {title}")
 
     driver = initialize_driver()
     results = []
 
     for ep in range(1, total_eps + 1):
-        watch_url = f"{MIRURO_WATCH_BASE}/{anime_id}/episode-{ep}"
-        short_msg = f"▶️ Ep {ep}/{total_eps}/{watch_url}"
-        print(f"\n[INFO] Loading Episode {ep}: {watch_url}")
-        msg_fun(short_msg)
+        url = f"{MIRURO_WATCH_BASE}/{anime_id}/episode-{ep}"
+        print(f"\n[EP {ep}] Loading: {url}")
+        msg_fun(f"⏳ Ep {ep}/{total_eps}")
 
         try:
-            driver.get(watch_url)
-            time.sleep(1)
+            driver.get(url)
+            time.sleep(2)
             video_url = extract_video_url(driver)
+
             if video_url:
                 results.append({"episode": ep, "url": video_url})
-                success_msg = f"✅ Ep {ep}: {video_url}..."
-                print(success_msg)
-                msg_fun(success_msg)
+                print(f"✅ Ep {ep}: {video_url[:70]}...")
+                msg_fun(f"✅ Ep {ep} Found!")
             else:
-                warn_msg = f"⚠️ Ep {ep}: No URL found"
-                print(warn_msg)
-                msg_fun(warn_msg)
+                print(f"⚠️ Ep {ep}: No stream detected")
+                msg_fun(f"⚠️ Ep {ep}: Not found")
         except Exception as e:
-            err_msg = f"❌ Ep {ep} failed: {str(e)[:100]}"
-            print(err_msg)
-            msg_fun(err_msg)
+            print(f"❌ Ep {ep} failed: {e}")
+            msg_fun(f"❌ Ep {ep} error")
             traceback.print_exc()
 
         time.sleep(1.5)
 
     driver.quit()
 
-    print("\n=== Extraction Completed ===")
-    done_msg = f"✅ Extraction completed for {title}. Total: {len(results)} URLs"
-    print(done_msg)
-    msg_fun(done_msg)
-
-    # Save results to text
-    filename = f"miruro_{anime_id}_videos.txt"
-    with open(filename, "w", encoding="utf-8") as f:
+    # Save TXT
+    txt_file = f"miruro_{anime_id}_links.txt"
+    with open(txt_file, "w", encoding="utf-8") as f:
         for r in results:
             f.write(f"Episode {r['episode']}: {r['url']}\n")
+    file_fun(txt_file, f"📄 {title} Links")
 
-    print(f"\nSaved results to {filename}")
-    msg_fun(f"📁 Saved results: {filename}")
-    file_fun(filename, f"{title} Video URLs")
+    # Generate HTML
+    if results:
+        generate_html_file(anime, results)
+    else:
+        msg_fun("⚠️ No videos found. HTML skipped.")
 
-    # Generate HTML output
-    generate_html_file(anime, results)
+    msg_fun(f"✅ Done! {len(results)} episodes ready.")
+    print(f"\n✅ All done! {len(results)} episodes extracted.")
 
 
 # --------- ENTRY POINT ---------
@@ -239,15 +227,18 @@ if __name__ == "__main__":
     if not user_input:
         user_input = input("Enter AniList ID or Miruro URL: ").strip()
 
+    # Parse ID from URL
     if "miruro.to" in user_input:
         match = re.search(r"/watch/(\d+)", user_input)
-        if match:
-            anime_id = int(match.group(1))
-        else:
-            msg_fun("❌ Invalid Miruro URL format.")
-            print("❌ Invalid Miruro URL format.")
+        if not match:
+            msg_fun("❌ Invalid Miruro URL")
             exit(1)
+        anime_id = int(match.group(1))
     else:
-        anime_id = int(user_input)
+        try:
+            anime_id = int(user_input)
+        except:
+            msg_fun("❌ Please enter a number or valid URL")
+            exit(1)
 
     extract_miruro_links(anime_id)
