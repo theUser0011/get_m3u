@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
 # ✅ Import Telegram messaging function
-from send_mst import msg_fun
+from send_mst import msg_fun, file_fun
 
 # --------- CONSTANTS ---------
 ANILIST_URL = "https://graphql.anilist.co"
@@ -147,6 +147,7 @@ def extract_miruro_links(anime_id: int):
             f.write(f"Episode {r['episode']}: {r['url']}\n")
     print(f"\nSaved results to {filename}")
     msg_fun(f"📁 Saved results: {filename}")
+    file_fun(filename,"filename")
 
 # --------- ENTRY POINT ---------
 if __name__ == "__main__":
