@@ -224,7 +224,7 @@ import json
 if __name__ == "__main__":
     with open("anime_id.json",encoding='utf-8')as f:
         id_obj = json.load(f)
-    user_input = id_obj.get("ANIME_ID", None).strip()
+    user_input = id_obj.get("ANIME_ID", None)
 
     if not user_input:
         msg_fun("No id provided...")
