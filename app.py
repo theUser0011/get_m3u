@@ -3,14 +3,15 @@ import re
 import time
 import traceback
 import requests
+import html
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
-# ✅ Import Telegram messaging function
-from send_mst import msg_fun
+# ✅ Import Telegram messaging & file sending functions
+from send_mst import msg_fun, file_fun
 
 # --------- CONSTANTS ---------
 ANILIST_URL = "https://graphql.anilist.co"
@@ -76,14 +77,92 @@ def extract_video_url(driver, max_presses=25):
         except Exception:
             pass
         time.sleep(1.2)
-        html = driver.page_source
+        html_source = driver.page_source
 
-        m3u8_match = pattern_m3u8.search(html)
-        mp4_match = pattern_mp4.search(html)
+        m3u8_match = pattern_m3u8.search(html_source)
+        mp4_match = pattern_mp4.search(html_source)
 
         if m3u8_match or mp4_match:
             return m3u8_match.group(0) if m3u8_match else mp4_match.group(0)
     return None
+
+# --------- FILENAME SANITIZATION ---------
+def sanitize_filename(name: str) -> str:
+    """Return safe filename version of a string."""
+    return re.sub(r'[^a-zA-Z0-9_-]+', '_', name).strip('_').lower()
+
+# --------- HTML GENERATION ---------
+def generate_html_file(anime, results):
+    """Generate an HTML file for anime details and episodes using template."""
+    title = anime["title"].get("romaji") or anime["title"].get("english") or f"Anime_{anime['id']}"
+    cover = anime["coverImage"]["extraLarge"]
+    score = anime.get("averageScore", "N/A")
+    total_eps = anime.get("episodes", len(results))
+    sanitized_title = sanitize_filename(title)
+    html_file = f"{sanitized_title}.html"
+
+    # Read template
+    if not os.path.exists("html_content.txt"):
+        print("⚠️ Missing html_content.txt file. Creating fallback template.")
+        html_template = """
+        <html>
+        <head>
+          <title>{{TITLE}}</title>
+          <style>
+            body { font-family: Arial, sans-serif; background-color: #f9f9f9; margin: 20px; }
+            .container { max-width: 900px; margin: auto; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
+            .cover { text-align: center; margin-bottom: 20px; }
+            img { border-radius: 10px; width: 250px; }
+            .title { font-size: 24px; font-weight: bold; margin-top: 10px; }
+            .score { color: #666; margin-bottom: 20px; }
+            ul { list-style: none; padding: 0; }
+            li { margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; background-color: #fafafa; }
+            video { width: 100%; border-radius: 8px; margin-top: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="cover">
+              <img src="{{COVER}}" alt="Cover">
+              <div class="title">{{TITLE}}</div>
+              <div class="score">⭐ Score: {{SCORE}} | 🎞️ Episodes: {{EPISODES}}</div>
+            </div>
+            <ul>
+              {{EPISODE_LIST}}
+            </ul>
+          </div>
+        </body>
+        </html>
+        """
+    else:
+        with open("html_content.txt", "r", encoding="utf-8") as f:
+            html_template = f.read()
+
+    # Build episode list
+    episode_html = ""
+    for r in results:
+        ep = r["episode"]
+        url = html.escape(r["url"])
+        episode_html += f"<li><strong>Episode {ep}</strong><br><a href='{url}' target='_blank'>{url}</a><br><video controls src='{url}'></video></li>\n"
+
+    # Replace placeholders
+    html_content = (
+        html_template
+        .replace("{{TITLE}}", html.escape(title))
+        .replace("{{COVER}}", cover)
+        .replace("{{SCORE}}", str(score))
+        .replace("{{EPISODES}}", str(total_eps))
+        .replace("{{EPISODE_LIST}}", episode_html)
+    )
+
+    # Save file
+    with open(html_file, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    print(f"📄 HTML saved: {html_file}")
+    msg_fun(f"📄 HTML file created: {html_file}")
+    file_fun(html_file, f"📁 {title} - Video List")
+    return html_file
 
 # --------- MAIN EXTRACTION ---------
 def extract_miruro_links(anime_id: int):
@@ -134,19 +213,24 @@ def extract_miruro_links(anime_id: int):
 
     driver.quit()
 
-    # Print all results
     print("\n=== Extraction Completed ===")
     done_msg = f"✅ Extraction completed for {title}. Total: {len(results)} URLs"
     print(done_msg)
     msg_fun(done_msg)
 
-    # Save results
+    # Save results to text
     filename = f"miruro_{anime_id}_videos.txt"
     with open(filename, "w", encoding="utf-8") as f:
         for r in results:
             f.write(f"Episode {r['episode']}: {r['url']}\n")
+
     print(f"\nSaved results to {filename}")
     msg_fun(f"📁 Saved results: {filename}")
+    file_fun(filename, f"{title} Video URLs")
+
+    # Generate HTML output
+    generate_html_file(anime, results)
+
 
 # --------- ENTRY POINT ---------
 if __name__ == "__main__":
@@ -155,7 +239,6 @@ if __name__ == "__main__":
     if not user_input:
         user_input = input("Enter AniList ID or Miruro URL: ").strip()
 
-    # Extract ID from Miruro URL if necessary
     if "miruro.to" in user_input:
         match = re.search(r"/watch/(\d+)", user_input)
         if match:
