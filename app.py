@@ -85,6 +85,28 @@ def extract_video_url(driver, max_presses=25):
             return m3u8_match.group(0) if m3u8_match else mp4_match.group(0)
     return None
 
+# --------- MIRURO EPISODE DETECTION ---------
+def get_miruro_episode_count(driver, anime_id: int):
+    """Detect number of available episodes from Miruro page"""
+    try:
+        url = f"{MIRURO_WATCH_BASE}/{anime_id}/episode-1"
+        driver.get(url)
+        time.sleep(2)
+        ep_buttons = driver.find_elements(By.CSS_SELECTOR, "#episodes-list-container button")
+        if ep_buttons:
+            print(f"[INFO] Found {len(ep_buttons)} episodes on Miruro.")
+            # Print available episode titles
+            for i, btn in enumerate(ep_buttons, start=1):
+                title = btn.get_attribute("title") or "Untitled"
+                print(f"  • {i}. {title}")
+            return len(ep_buttons)
+        else:
+            print("[WARN] Could not detect episodes on Miruro.")
+            return 0
+    except Exception as e:
+        print(f"[WARN] Episode detection failed: {e}")
+        return 0
+
 # --------- MAIN EXTRACTION ---------
 def extract_miruro_links(anime_id: int):
     """Extract streaming URLs for all episodes of a Miruro anime"""
@@ -95,19 +117,29 @@ def extract_miruro_links(anime_id: int):
         return
 
     title = anime["title"].get("romaji") or anime["title"].get("english") or f"Anime {anime_id}"
-    total_eps = anime.get("episodes", 12)
-    total_eps = min(total_eps, 25)  # avoid long runs
+    total_eps_anilist = anime.get("episodes", 12)
+    total_eps_anilist = min(total_eps_anilist, 25)  # avoid long runs
 
-    start_msg = f"🎬 Starting extraction for {title} ({total_eps} eps)"
+    driver = initialize_driver()
+
+    # ✅ Detect real episode count from Miruro
+    total_eps_miruro = get_miruro_episode_count(driver, anime_id)
+    if total_eps_miruro == 0:
+        print("[WARN] Falling back to AniList episode count.")
+        total_eps_miruro = total_eps_anilist
+
+    # ✅ Use the smaller of both to prevent overfetch
+    total_eps = min(total_eps_anilist, total_eps_miruro)
+
+    start_msg = f"🎬 Starting extraction for {title} ({total_eps} episodes detected)"
     print(start_msg)
     msg_fun(start_msg)
 
-    driver = initialize_driver()
     results = []
 
     for ep in range(1, total_eps + 1):
         watch_url = f"{MIRURO_WATCH_BASE}/{anime_id}/episode-{ep}"
-        short_msg = f"▶️ Ep {ep}/{total_eps}/{watch_url}"
+        short_msg = f"▶️ Ep {ep}/{total_eps} → {watch_url}"
         print(f"\n[INFO] Loading Episode {ep}: {watch_url}")
         msg_fun(short_msg)
 
@@ -134,20 +166,20 @@ def extract_miruro_links(anime_id: int):
 
     driver.quit()
 
-    # Print all results
+    # --------- SAVE RESULTS ---------
     print("\n=== Extraction Completed ===")
     done_msg = f"✅ Extraction completed for {title}. Total: {len(results)} URLs"
     print(done_msg)
     msg_fun(done_msg)
 
-    # Save results
     filename = f"miruro_{anime_id}_videos.txt"
     with open(filename, "w", encoding="utf-8") as f:
         for r in results:
             f.write(f"Episode {r['episode']}: {r['url']}\n")
+
     print(f"\nSaved results to {filename}")
     msg_fun(f"📁 Saved results: {filename}")
-    file_fun(filename,"filename")
+    file_fun(filename, "filename")
 
 # --------- ENTRY POINT ---------
 if __name__ == "__main__":
