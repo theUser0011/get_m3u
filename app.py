@@ -223,7 +223,7 @@ import json
 # --------- ENTRY POINT ---------
 if __name__ == "__main__":
     with open("anime_id.json",encoding='utf-8')as f:
-        id_obj = json.loads(f)
+        id_obj = json.load(f)
     user_input = id_obj.get("ANIME_ID", None).strip()
 
     if not user_input:
