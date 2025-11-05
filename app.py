@@ -107,6 +107,33 @@ def get_miruro_episode_count(driver, anime_id: int):
         print(f"[WARN] Episode detection failed: {e}")
         return 0
 
+# --------- HTML RENDER FUNCTION ---------
+def render_html_template(template_path, output_path, anime, episodes):
+    """Render the HTML template with anime data and episode links."""
+    try:
+        with open(template_path, "r", encoding="utf-8") as f:
+            html = f.read()
+
+        html = html.replace("{{ title }}", anime["title"].get("romaji") or "Untitled")
+        html = html.replace("{{ cover_url }}", anime["coverImage"]["extraLarge"])
+        html = html.replace("{{ score }}", str(anime.get("averageScore", "N/A")))
+        html = html.replace("{{ total_eps }}", str(len(episodes)))
+
+        # Build episode links HTML
+        episode_html = ""
+        for ep in episodes:
+            episode_html += f'<a href="{ep["url"]}" class="btn btn-outline-primary episode-btn" target="_blank">Episode {ep["episode"]}</a>\n'
+
+        # Replace episode loop block
+        html = re.sub(r"{% for ep in episodes %}.*?{% endfor %}", episode_html.strip(), html, flags=re.DOTALL)
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(html)
+
+    except Exception as e:
+        print(f"[ERROR] HTML render failed: {e}")
+        msg_fun(f"❌ HTML render failed: {e}")
+
 # --------- MAIN EXTRACTION ---------
 def extract_miruro_links(anime_id: int):
     """Extract streaming URLs for all episodes of a Miruro anime"""
@@ -166,20 +193,21 @@ def extract_miruro_links(anime_id: int):
 
     driver.quit()
 
-    # --------- SAVE RESULTS ---------
+    # --------- SAVE RESULTS (NEW HTML TEMPLATE LOGIC ADDED) ---------
     print("\n=== Extraction Completed ===")
     done_msg = f"✅ Extraction completed for {title}. Total: {len(results)} URLs"
     print(done_msg)
     msg_fun(done_msg)
 
-    filename = f"miruro_{anime_id}_videos.txt"
-    with open(filename, "w", encoding="utf-8") as f:
-        for r in results:
-            f.write(f"Episode {r['episode']}: {r['url']}\n")
+    # ✅ Generate HTML Report
+    html_filename = f"miruro_{anime_id}.html"
+    render_html_template("template.html", html_filename, anime, results)
 
-    print(f"\nSaved results to {filename}")
-    msg_fun(f"📁 Saved results: {filename}")
-    file_fun(filename, "filename")
+    print(f"\n📁 HTML Report generated: {html_filename}")
+    msg_fun(f"📁 HTML Report generated: {html_filename}")
+
+    # ✅ Send HTML file to Telegram
+    file_fun(html_filename, "HTML Report")
 
 # --------- ENTRY POINT ---------
 if __name__ == "__main__":
