@@ -25,13 +25,12 @@ from flask_limiter.util import get_remote_address
 try:
     os.sched_setaffinity(0, {0, 1})
 except AttributeError:
-    # Not Linux, skip
-    pass
+    pass  # Not Linux, skip
 
 # --------- CONSTANTS ---------
 ANILIST_URL = "https://graphql.anilist.co"
 MIRURO_WATCH_BASE = "https://www.miruro.to/watch"
-MAX_RUNTIME_SECONDS = 600  # 10 minutes max per extraction
+MAX_RUNTIME_SECONDS = 600  # 10 minutes max per request
 
 # --------- FLASK APP & RATE LIMITER ---------
 app = Flask(__name__)
@@ -144,7 +143,7 @@ def get_miruro_episode_count(driver, anime_id: int):
         logging.warning(f"Episode detection failed for anime {anime_id}: {e}")
         return 0
 
-# --------- MAIN EXTRACTION ---------
+# --------- MAIN EXTRACTION WITH MAX REQUEST TIME ---------
 def extract_miruro_links(anime_id: int):
     with extraction_lock:  # limit concurrent extractions per process
         logging.info(f"Starting extraction for anime ID {anime_id}...")
@@ -163,9 +162,13 @@ def extract_miruro_links(anime_id: int):
             logging.info(f"Total episodes to extract: {total_eps}")
 
             results = []
+            stopped_early = False
+
             for ep in range(1, total_eps + 1):
-                if time.time() - start_time > MAX_RUNTIME_SECONDS:
-                    logging.error("Extraction exceeded max runtime of 10 minutes. Stopping process.")
+                elapsed = time.time() - start_time
+                if elapsed > MAX_RUNTIME_SECONDS:
+                    logging.warning("Extraction exceeded max runtime. Stopping early.")
+                    stopped_early = True
                     break
 
                 try:
@@ -180,12 +183,17 @@ def extract_miruro_links(anime_id: int):
                     logging.error(f"Episode {ep} extraction failed: {e}")
                     traceback.print_exc()
 
-            logging.info(f"Extraction completed for anime {anime_id}.")
-            return {
+            response = {
                 "anime_id": anime_id,
                 "title": anime["title"].get("romaji") or anime["title"].get("english") or f"Anime {anime_id}",
                 "episodes": results
             }
+
+            if stopped_early:
+                response["message"] = f"Request stopped: took longer than {MAX_RUNTIME_SECONDS // 60} minutes. Partial data returned."
+
+            logging.info(f"Extraction completed for anime {anime_id}.")
+            return response
         finally:
             driver.quit()
             shutil.rmtree(temp_dir, ignore_errors=True)
