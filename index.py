@@ -10,7 +10,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
-# ✅ Import Telegram messaging functions (optional)
+# Optional: Telegram messaging functions
 from send_mst import msg_fun, file_fun
 
 # --------- CONSTANTS ---------
@@ -101,7 +101,6 @@ def extract_miruro_links(anime_id: int):
         return {"error": "Could not fetch anime details"}
 
     total_eps_anilist = min(anime.get("episodes", 12), 25)
-
     driver = initialize_driver()
     total_eps_miruro = get_miruro_episode_count(driver, anime_id)
     total_eps = min(total_eps_anilist, total_eps_miruro or total_eps_anilist)
