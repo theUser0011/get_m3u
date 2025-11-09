@@ -131,7 +131,7 @@ def extract_miruro_links(anime_id: int):
     print(f"[LOG] Total episodes to extract: {total_eps}")
 
     results = []
-    for ep in range(1, total_eps + 1):
+    for ep in range(2, total_eps + 1):
         if time.time() - start_time > MAX_RUNTIME_SECONDS:
             print("[ERROR] Extraction exceeded max runtime of 10 minutes. Stopping process.")
             print(f"❌ Extraction for anime {anime_id} stopped due to timeout.")
