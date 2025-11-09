@@ -131,7 +131,7 @@ def extract_miruro_links(anime_id: int):
     print(f"[LOG] Total episodes to extract: {total_eps}")
 
     results = []
-    for ep in range(2, total_eps + 1):
+    for ep in range(1, total_eps + 1):
         if time.time() - start_time > MAX_RUNTIME_SECONDS:
             print("[ERROR] Extraction exceeded max runtime of 10 minutes. Stopping process.")
             print(f"❌ Extraction for anime {anime_id} stopped due to timeout.")
@@ -152,10 +152,11 @@ def extract_miruro_links(anime_id: int):
 
     driver.quit()
 
-    # Stop process if too few episodes extracted and episodes <=12
-    if len(results) <= 12 and total_eps <= 12:
-        print(f"[WARN] Extracted {len(results)} episodes out of {total_eps}. This may be correct for short series.")
-
+    # # Stop process if too few episodes extracted and episodes <=12
+    # if len(results) <= 12 and total_eps <= 12:
+    #     print("[ERROR] Extracted episodes <=12 and total_eps <=12. Stopping extraction as logic may be wrong.")
+    #     print(f"❌ Extraction for anime {anime_id} seems wrong. Only {len(results)} episodes extracted.")
+    #     return {"error": "Extraction seems wrong. Stopping."}
 
     print("[LOG] Extraction completed.")
     return {
