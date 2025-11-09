@@ -10,7 +10,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
-# Optional: Telegram messaging functions (keep if you want notifications)
+# ✅ Import Telegram messaging functions (optional)
 from send_mst import msg_fun, file_fun
 
 # --------- CONSTANTS ---------
@@ -19,7 +19,7 @@ MIRURO_WATCH_BASE = "https://www.miruro.to/watch"
 
 app = Flask(__name__)
 
-# --------- FETCH ANI-LIST DETAILS ---------
+# --------- GRAPHQL FETCH ---------
 def fetch_anime_details(anime_id: int):
     query = """
     query ($id: Int) {
@@ -82,7 +82,7 @@ def extract_video_url(driver, max_presses=25):
             return m3u8_match.group(0) if m3u8_match else mp4_match.group(0)
     return None
 
-# --------- MIRURO EPISODE COUNT ---------
+# --------- MIRURO EPISODE DETECTION ---------
 def get_miruro_episode_count(driver, anime_id: int):
     try:
         url = f"{MIRURO_WATCH_BASE}/{anime_id}/episode-1"
@@ -100,12 +100,14 @@ def extract_miruro_links(anime_id: int):
     if not anime:
         return {"error": "Could not fetch anime details"}
 
-    total_eps_anilist = min(anime.get("episodes", 12), 25)  # limit long runs
+    total_eps_anilist = min(anime.get("episodes", 12), 25)
+
     driver = initialize_driver()
     total_eps_miruro = get_miruro_episode_count(driver, anime_id)
     total_eps = min(total_eps_anilist, total_eps_miruro or total_eps_anilist)
 
     results = []
+
     for ep in range(1, total_eps + 1):
         try:
             watch_url = f"{MIRURO_WATCH_BASE}/{anime_id}/episode-{ep}"
@@ -115,7 +117,7 @@ def extract_miruro_links(anime_id: int):
             if video_url:
                 results.append({"episode": ep, "url": video_url})
         except Exception as e:
-            print(f"[ERROR] Episode {ep} failed: {e}")
+            print(f"[ERROR] Ep {ep} failed: {e}")
             traceback.print_exc()
         time.sleep(1.0)
 
@@ -126,14 +128,14 @@ def extract_miruro_links(anime_id: int):
         "episodes": results
     }
 
-# --------- FLASK API ROUTE ---------
-@app.route("/api/extract", methods=["GET"])
-def api_extract():
-    anime_input = request.args.get("id") or request.args.get("url")
+# --------- HOME ROUTE ---------
+@app.route("/", methods=["GET"])
+def home():
+    anime_input = request.args.get("anime_id") or request.args.get("id") or request.args.get("url")
     if not anime_input:
-        return jsonify({"error": "Missing 'id' or 'url' parameter"}), 400
+        return jsonify({"message": "Welcome! Provide ?anime_id=<id> to get video URLs."}), 200
 
-    # Extract AniList ID from Miruro URL if given
+    # Extract ID
     if "miruro.to" in anime_input:
         match = re.search(r"/watch/(\d+)", anime_input)
         if not match:
