@@ -10,12 +10,11 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
-# ✅ Import Telegram messaging functions (optional)
-from send_mst import msg_fun, file_fun
-
 # --------- CONSTANTS ---------
 ANILIST_URL = "https://graphql.anilist.co"
 MIRURO_WATCH_BASE = "https://www.miruro.to/watch"
+CHROMEDRIVER_PATH = os.path.join(os.getcwd(), "chromedriver")  # Linux chromedriver
+CHROME_BINARY = os.path.join(os.getcwd(), "chrome-headless-shell-linux64")  # headless chrome
 
 app = Flask(__name__)
 
@@ -48,20 +47,21 @@ def fetch_anime_details(anime_id: int):
         return data.get("data", {}).get("Media", None)
     except Exception as e:
         print(f"[ERROR] Failed to fetch AniList data: {e}")
-        msg_fun(f"❌ AniList fetch failed: {e}")
         return None
 
 # --------- SELENIUM DRIVER SETUP ---------
 def initialize_driver():
     print("[LOG] Initializing headless Chrome WebDriver...")
     options = Options()
+    options.binary_location = CHROME_BINARY
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--mute-audio")
-    service = Service("chromedriver")
+    
+    service = Service(CHROMEDRIVER_PATH)
     driver = webdriver.Chrome(service=service, options=options)
     print("[LOG] Chrome WebDriver initialized.")
     return driver
@@ -167,3 +167,4 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     print(f"[LOG] Starting Flask server on port {port}...")
     app.run(host="0.0.0.0", port=port)
+# this is new one
