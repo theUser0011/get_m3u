@@ -21,9 +21,9 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 # --------- CPU LIMIT (Linux only) ---------
-# Limit this process to use only 2 CPUs (adjust as needed)
+# Limit this process to use only CPU 0 and 1 (adjust as needed)
 try:
-    os.sched_setaffinity(0, {0, 1})  # Only CPU 0 and 1
+    os.sched_setaffinity(0, {0, 1})
 except AttributeError:
     # Not Linux, skip
     pass
@@ -35,7 +35,11 @@ MAX_RUNTIME_SECONDS = 600  # 10 minutes max per extraction
 
 # --------- FLASK APP & RATE LIMITER ---------
 app = Flask(__name__)
-limiter = Limiter(app, key_func=get_remote_address, default_limits=["5 per minute"])
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["5 per minute"]
+)
 
 # --------- LOGGING SETUP ---------
 logging.basicConfig(
