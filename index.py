@@ -8,7 +8,7 @@ import logging
 import requests
 from threading import Lock
 
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
@@ -19,6 +19,14 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
+# --------- CPU LIMIT (Linux only) ---------
+# Limit this process to use only 2 CPUs (adjust as needed)
+try:
+    os.sched_setaffinity(0, {0, 1})  # Only CPU 0 and 1
+except AttributeError:
+    # Not Linux, skip
+    pass
 
 # --------- CONSTANTS ---------
 ANILIST_URL = "https://graphql.anilist.co"
@@ -134,7 +142,7 @@ def get_miruro_episode_count(driver, anime_id: int):
 
 # --------- MAIN EXTRACTION ---------
 def extract_miruro_links(anime_id: int):
-    with extraction_lock:  # limit concurrent extractions
+    with extraction_lock:  # limit concurrent extractions per process
         logging.info(f"Starting extraction for anime ID {anime_id}...")
         start_time = time.time()
 
