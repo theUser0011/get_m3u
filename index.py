@@ -1,7 +1,6 @@
 import os
 import re
 import time
-import tempfile
 import traceback
 import requests
 from flask import Flask, request, jsonify
@@ -10,6 +9,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+
+# ✅ Import Telegram messaging functions (optional)
+from send_mst import msg_fun, file_fun
 
 # --------- CONSTANTS ---------
 ANILIST_URL = "https://graphql.anilist.co"
@@ -46,6 +48,7 @@ def fetch_anime_details(anime_id: int):
         return data.get("data", {}).get("Media", None)
     except Exception as e:
         print(f"[ERROR] Failed to fetch AniList data: {e}")
+        msg_fun(f"❌ AniList fetch failed: {e}")
         return None
 
 # --------- SELENIUM DRIVER SETUP ---------
@@ -58,14 +61,7 @@ def initialize_driver():
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--mute-audio")
-
-    # Use a temporary user-data-dir to avoid session conflicts
-    temp_dir = tempfile.mkdtemp()
-    options.add_argument(f"--user-data-dir={temp_dir}")
-
-    chromedriver_path = os.path.join(os.getcwd(), "chromedriver")
-    service = Service(chromedriver_path)
-
+    service = Service("chromedriver")
     driver = webdriver.Chrome(service=service, options=options)
     print("[LOG] Chrome WebDriver initialized.")
     return driver
