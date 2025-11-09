@@ -13,8 +13,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from send_mst import msg_fun, file_fun
-
 # --------- CONSTANTS ---------
 ANILIST_URL = "https://graphql.anilist.co"
 MIRURO_WATCH_BASE = "https://www.miruro.to/watch"
@@ -51,7 +49,7 @@ def fetch_anime_details(anime_id: int):
         return data.get("data", {}).get("Media", None)
     except Exception as e:
         print(f"[ERROR] Failed to fetch AniList data: {e}")
-        msg_fun(f"❌ AniList fetch failed: {e}")
+        print(f"❌ AniList fetch failed: {e}")
         return None
 
 # --------- SELENIUM DRIVER SETUP ---------
@@ -136,7 +134,7 @@ def extract_miruro_links(anime_id: int):
     for ep in range(1, total_eps + 1):
         if time.time() - start_time > MAX_RUNTIME_SECONDS:
             print("[ERROR] Extraction exceeded max runtime of 10 minutes. Stopping process.")
-            msg_fun(f"❌ Extraction for anime {anime_id} stopped due to timeout.")
+            print(f"❌ Extraction for anime {anime_id} stopped due to timeout.")
             break
 
         try:
@@ -157,7 +155,7 @@ def extract_miruro_links(anime_id: int):
     # Stop process if too few episodes extracted and episodes <=12
     if len(results) <= 12 and total_eps <= 12:
         print("[ERROR] Extracted episodes <=12 and total_eps <=12. Stopping extraction as logic may be wrong.")
-        msg_fun(f"❌ Extraction for anime {anime_id} seems wrong. Only {len(results)} episodes extracted.")
+        print(f"❌ Extraction for anime {anime_id} seems wrong. Only {len(results)} episodes extracted.")
         return {"error": "Extraction seems wrong. Stopping."}
 
     print("[LOG] Extraction completed.")
