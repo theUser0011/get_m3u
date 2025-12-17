@@ -25,6 +25,6 @@ jobs:
 
       - name: Run extractor
         env:
-          ANIME_ID: 133844
+          ANIME_ID: 112023
           KEYS: ${{ secrets.KEYS }}
         run: python app.py
